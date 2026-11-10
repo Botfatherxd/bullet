@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Roza Search</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#000;--card:#0f0a0d;--card2:#170e13;--pink:#ff4fa3;--pink2:#ff8cc6;--pink3:#c2185b;--line:rgba(255,79,163,.16);--txt:#fff;--mut:#c08ba8}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;font-weight:700}
+html,body{margin:0;height:100%;background:#000;color:var(--txt);font-family:-apple-system,"SF Pro Display","Inter","Segoe UI",Roboto,sans-serif;overflow:hidden}
+button,input,textarea{font-family:inherit;color:inherit;outline:none}
+button{cursor:pointer}
+
+/* ---------- splash ---------- */
+#splash{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(60% 40% at 50% 46%,rgba(255,79,163,.18),transparent 70%),#000;z-index:60;
+  transition:opacity .9s ease,visibility .9s}
+#splash.hide{opacity:0;visibility:hidden}
+#splash h1{margin:0;font-size:46px;letter-spacing:.5px;background:linear-gradient(90deg,#ff8cc6,#ff4fa3,#ff8cc6);
+  background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;opacity:0;
+  transform:translateY(16px) scale(.96);filter:blur(12px);
+  animation:sIn 1.4s .15s cubic-bezier(.2,.8,.2,1) forwards,shine 3.2s linear infinite}
+#splash p{margin:12px 0 0;color:var(--mut);font-size:16px;opacity:0;transform:translateY(10px);
+  animation:sIn2 1.2s .8s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes sIn{to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes sIn2{to{opacity:1;transform:none}}
+@keyframes shine{to{background-position:-200% 0}}
+
+/* ---------- app / tabs ---------- */
+#app{position:fixed;inset:0;opacity:0;transform:scale(.985);transition:opacity .9s ease,transform .9s ease}
+#app.show{opacity:1;transform:none}
+.tab{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+  padding:calc(env(safe-area-inset-top,0px) + 16px) 16px 132px;opacity:0;visibility:hidden;transform:translateY(16px);
+  transition:opacity .4s ease,transform .45s cubic-bezier(.2,.8,.2,1),visibility .4s}
+.tab.on{opacity:1;visibility:visible;transform:none}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.h{font-size:26px;letter-spacing:.2px}
+.sub{color:var(--mut);font-size:13px;margin-top:2px}
+.badge{padding:8px 14px;border-radius:20px;background:var(--card2);border:1px solid var(--line);color:var(--pink2);font-size:13px}
+
+.card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:22px;padding:14px;margin-bottom:12px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chip{padding:10px 16px;border-radius:16px;background:var(--card2);border:1px solid var(--line);color:var(--mut);font-size:14px;
+  transition:all .25s ease}
+.chip.on{background:linear-gradient(135deg,var(--pink),var(--pink3));color:#fff;border-color:transparent;box-shadow:0 6px 20px rgba(255,79,163,.35)}
+.chip:active{transform:scale(.95)}
+.lbl{color:var(--mut);font-size:12px;margin:2px 0 8px;display:flex;align-items:center;gap:6px}
+.lock{color:var(--pink2)}
+.switch{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:18px;background:var(--card2);
+  border:1px solid var(--line);margin-bottom:12px;font-size:14px}
+.tg{width:46px;height:28px;border-radius:14px;background:#2a1a23;position:relative;transition:background .3s;flex:none}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .3s cubic-bezier(.3,1.4,.4,1)}
+.tg.on{background:var(--pink)}
+.tg.on::after{transform:translateX(18px)}
+.opts.locked .chip,.opts.locked .inp{opacity:.55}
+.inp{width:100%;padding:13px 14px;border-radius:14px;background:#0a0608;border:1px solid var(--line);font-size:15px;margin-bottom:8px}
+.inp:focus{border-color:var(--pink)}
+.row2{display:flex;gap:8px}
+.btn{padding:13px 16px;border-radius:16px;border:1px solid var(--line);background:var(--card2);color:var(--pink2);font-size:14px;transition:transform .2s}
+.btn:active{transform:scale(.96)}
+.btn.p{background:linear-gradient(135deg,var(--pink),var(--pink3));color:#fff;border:0;box-shadow:0 8px 26px rgba(255,79,163,.35)}
+
+/* ---------- stage (animation) ---------- */
+.stage{position:relative;height:210px;display:grid;place-items:center;margin:4px 0 8px;overflow:hidden;border-radius:26px;
+  background:radial-gradient(60% 70% at 50% 50%,rgba(255,79,163,.10),transparent 70%)}
+.idle{grid-area:1/1;font-size:34px;color:#3a2230;letter-spacing:2px;transition:opacity .4s}
+.stage.run .idle{opacity:0}
+.fly,.final{grid-area:1/1;white-space:nowrap;pointer-events:none}
+.fly{font-size:34px;color:var(--pink);text-shadow:0 0 22px rgba(255,79,163,.75);animation:fly .95s cubic-bezier(.22,.8,.2,1) forwards;will-change:transform,opacity,filter}
+@keyframes fly{
+  0%{opacity:0;transform:translateY(28px) scale(.86);filter:blur(10px)}
+  28%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}
+  50%{opacity:1;transform:translateY(0) scale(1.03);filter:blur(0)}
+  100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(.7);filter:blur(8px)}}
+.final{font-size:40px;color:var(--pink);text-shadow:0 0 30px rgba(255,79,163,.9),0 0 60px rgba(255,79,163,.45);
+  animation:finalIn 1.05s cubic-bezier(.2,1.1,.3,1) forwards,glow 2.2s 1.05s ease-in-out infinite alternate}
+@keyframes finalIn{0%{opacity:0;transform:scale(.4);filter:blur(18px)}60%{opacity:1;transform:scale(1.12);filter:blur(0)}100%{opacity:1;transform:scale(1)}}
+@keyframes glow{to{text-shadow:0 0 14px rgba(255,79,163,.6),0 0 34px rgba(255,79,163,.3)}}
+.spark{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:var(--pink2);
+  box-shadow:0 0 10px var(--pink);animation:spark .95s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes spark{0%{opacity:1;transform:rotate(var(--a)) translateX(14px) scale(1)}100%{opacity:0;transform:rotate(var(--a)) translateX(var(--d)) scale(.2)}}
+
+.cta{width:100%;padding:17px;border-radius:22px;border:0;background:linear-gradient(135deg,var(--pink),var(--pink3));color:#fff;font-size:18px;
+  box-shadow:0 12px 34px rgba(255,79,163,.4);transition:transform .2s,box-shadow .3s,opacity .3s;letter-spacing:.3px}
+.cta:active{transform:scale(.97)}
+.cta.stop{background:#2a1a23;box-shadow:none;color:var(--pink2)}
+.status{min-height:22px;text-align:center;color:var(--mut);font-size:13px;margin:10px 0 4px}
+
+/* ---------- result ---------- */
+.res{animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+.rhead{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.ring{position:relative;width:84px;height:84px;flex:none}
+.ring svg{width:84px;height:84px;transform:rotate(-90deg)}
+.ring .bg{stroke:rgba(255,79,163,.15)}
+.ring .fg{stroke:var(--pink);stroke-linecap:round;stroke-dasharray:226;stroke-dashoffset:226;transition:stroke-dashoffset 1.3s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 0 6px rgba(255,79,163,.7))}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:22px}
+.rname{font-size:24px;color:var(--pink);word-break:break-all}
+.rlvl{color:var(--mut);font-size:14px;margin-top:4px}
+.bar{margin:9px 0}
+.bar .t{display:flex;justify-content:space-between;font-size:13px;color:#e9c5d8;margin-bottom:5px}
+.bar .tr{height:8px;border-radius:6px;background:#22121a;overflow:hidden}
+.bar .fl{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--pink3),var(--pink),var(--pink2));transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.rst{font-size:14px;margin:0 0 10px;color:#fff}
+.ver{font-size:12px;color:var(--mut);margin-top:10px}
+
+/* ---------- favs / lists ---------- */
+.fav{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;border-radius:14px;background:#0a0608;border:1px solid var(--line);margin-bottom:8px;font-size:15px}
+.fav span.s{font-size:12px;color:var(--mut);margin-left:8px}
+.x{background:none;border:0;color:var(--mut);font-size:18px;padding:2px 8px}
+
+/* ---------- premium ---------- */
+.hero{text-align:center;padding:26px 16px;background:radial-gradient(80% 90% at 50% 0%,rgba(255,79,163,.22),transparent 70%),linear-gradient(180deg,var(--card2),var(--card))}
+.hero svg{width:64px;height:64px;stroke:var(--pink);fill:rgba(255,79,163,.15);stroke-width:1.6;filter:drop-shadow(0 0 16px rgba(255,79,163,.7));animation:float 3s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-6px)}}
+.hero h2{margin:12px 0 4px;font-size:26px}
+.feat{display:flex;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid rgba(255,79,163,.08);font-size:15px;opacity:0;transform:translateX(-14px);animation:fx .5s forwards}
+.feat:last-child{border:0}
+.feat i{flex:none;width:26px;height:26px;border-radius:9px;background:rgba(255,79,163,.16);display:grid;place-items:center;color:var(--pink);font-style:normal;font-size:14px}
+@keyframes fx{to{opacity:1;transform:none}}
+.price{display:inline-block;margin:6px 0 2px;padding:8px 16px;border-radius:18px;background:rgba(255,79,163,.14);color:var(--pink2)}
+
+/* ---------- support ---------- */
+.chat{display:flex;flex-direction:column;gap:8px;min-height:220px;max-height:46vh;overflow-y:auto;padding:4px 2px 10px}
+.msg{max-width:82%;padding:10px 13px;border-radius:18px;font-size:14px;line-height:1.35;white-space:pre-wrap;word-break:break-word;animation:rise .35s both}
+.msg.user{align-self:flex-end;background:linear-gradient(135deg,var(--pink),var(--pink3));border-bottom-right-radius:6px}
+.msg.admin{align-self:flex-start;background:var(--card2);border:1px solid var(--line);border-bottom-left-radius:6px}
+.empty{color:var(--mut);text-align:center;padding:34px 10px;font-size:14px}
+textarea.inp{resize:none;height:76px}
+
+/* ---------- nav ---------- */
+nav{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);height:68px;border-radius:34px;
+  background:rgba(22,12,18,.78);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid var(--line);
+  box-shadow:0 10px 40px rgba(255,79,163,.14),inset 0 1px 0 rgba(255,255,255,.05);display:flex;padding:6px;z-index:30}
+nav .ind{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px)/3);border-radius:28px;
+  background:linear-gradient(135deg,var(--pink),var(--pink3));box-shadow:0 6px 24px rgba(255,79,163,.5);
+  transition:transform .55s cubic-bezier(.3,1.25,.4,1)}
+nav button{flex:1;position:relative;z-index:1;background:none;border:0;color:var(--mut);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;font-size:11px;transition:color .3s}
+nav button.on{color:#fff}
+nav svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .4s cubic-bezier(.3,1.5,.4,1)}
+nav button.on svg{transform:translateY(-1px) scale(1.12)}
+
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 98px);transform:translate(-50%,20px);opacity:0;z-index:40;
+  padding:11px 18px;border-radius:18px;background:rgba(30,14,22,.95);border:1px solid var(--line);color:#fff;font-size:13px;
+  transition:all .35s cubic-bezier(.2,.8,.2,1);pointer-events:none;max-width:88%;text-align:center}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+#err{display:none;position:fixed;inset:0;z-index:70;background:#000;align-items:center;justify-content:center;text-align:center;padding:30px;color:var(--pink2);font-size:16px}
+</style>
+</head>
+<body>
+
+<div id="splash"><h1>Roza Search</h1><p>поиск username'ов</p></div>
+<div id="err">Откройте Mini App через Telegram-бота</div>
+
+<div id="app">
+  <!-- Крутить -->
+  <section class="tab on" id="t0">
+    <div class="top"><div><div class="h">Крутить</div><div class="sub">найди свободный username</div></div><div class="badge" id="req">—</div></div>
+    <div class="chips" id="cats"></div>
+    <div class="switch" id="sw"><span>Без символов</span><i class="tg"></i></div>
+    <div class="card opts" id="opts"></div>
+    <div class="stage" id="stage"><div class="idle" id="idle">@?????</div></div>
+    <button class="cta" id="spin">Крутить</button>
+    <div class="status" id="status"></div>
+    <div id="result"></div>
+    <div id="extra"></div>
+  </section>
+
+  <!-- Премиум -->
+  <section class="tab" id="t1">
+    <div class="card hero">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5L3 8z"/></svg>
+      <h2>Roza Premium</h2>
+      <div class="sub" id="pstate">больше возможностей поиска</div>
+      <div class="price" id="pprice">15 ⭐</div>
+    </div>
+    <div class="card" id="feats"></div>
+    <button class="cta" id="buy">Оформить Premium</button>
+  </section>
+
+  <!-- Поддержка -->
+  <section class="tab" id="t2">
+    <div class="top"><div><div class="h">Поддержка</div><div class="sub" id="tstate">напишите нам</div></div></div>
+    <div class="card"><div class="chat" id="chat"></div></div>
+    <textarea class="inp" id="sup" placeholder="Опишите проблему..."></textarea>
+    <div class="row2"><button class="btn p" id="send" style="flex:1">Отправить</button><button class="btn" id="close">Закрыть тикет</button></div>
+  </section>
+
+  <nav>
+    <div class="ind" id="ind"></div>
+    <button class="on" data-i="0"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor"/></svg>Крутить</button>
+    <button data-i="1"><svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5L3 8z"/></svg>Премиум</button>
+    <button data-i="2"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Поддержка</button>
+  </nav>
+</div>
+<div id="toast"></div>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { try { tg.ready(); tg.expand(); tg.setHeaderColor('#000000'); tg.setBackgroundColor('#000000'); tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const hap = (t) => { try { tg.HapticFeedback.impactOccurred(t || 'light'); } catch (e) {} };
+const S = { me: null, cat: null, spinning: false, tab: 0, stopFlag: false };
+const MODES = [['rand', 'Случайный'], ['cv', 'Произносимый'], ['word', 'Слова']];
+const LVLS = [['0', 'Любой'], ['1', 'Красота+'], ['2', 'Идеал']];
+const FEATS = ['Без лимитов на поиск', 'Поиск из 5 букв', 'Режимы: произносимые и слова', 'Поиск по маске (ro???)',
+  'Фильтр по рейтингу: Красота / Идеал', 'Проверка любого юзернейма', 'Избранное с перепроверкой', 'Приоритет в поддержке'];
+
+async function api(name, body) {
+  const r = await fetch('/api/' + name, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Init-Data': (tg && tg.initData) || '' }, body: JSON.stringify(body || {}) });
+  if (r.status === 401) throw new Error('auth');
+  return r.json();
+}
+let tt;
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('on'), 2400); }
+const prem = () => S.me && S.me.premium;
+
+/* ---------- навигация ---------- */
+function go(i) {
+  S.tab = i; hap();
+  document.querySelectorAll('.tab').forEach((t, k) => t.classList.toggle('on', k === i));
+  document.querySelectorAll('nav button').forEach((b, k) => b.classList.toggle('on', k === i));
+  $('#ind').style.transform = 'translateX(' + (i * 100) + '%)';
+  if (i === 1) drawPremium();
+  if (i === 2) loadSupport();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => go(+b.dataset.i));
+function needPremium(msg) { toast(msg || 'Доступно с Premium'); setTimeout(() => go(1), 450); }
+
+/* ---------- данные ---------- */
+async function loadMe() {
+  S.me = await api('me');
+  if (S.me.error) throw new Error(S.me.error);
+  if (!S.cat || !S.me.cats.find(c => c.id === S.cat)) {
+    const c = S.me.cats.find(c => !c.premium) || S.me.cats[0]; S.cat = c ? c.id : null;
+  }
+  drawTop(); drawCats(); drawOpts(); drawExtra();
+}
+function drawTop() { $('#req').textContent = S.me.premium ? '∞ запросов' : (S.me.requests + ' запр.'); $('#sw .tg').classList.toggle('on', S.me.nosym); }
+function drawCats() {
+  const el = $('#cats'); el.innerHTML = '';
+  S.me.cats.forEach(c => {
+    const b = document.createElement('button'); b.className = 'chip' + (c.id === S.cat ? ' on' : '');
+    b.textContent = c.title + (c.premium && !prem() ? ' 🔒' : '');
+    b.onclick = () => { if (c.premium && !prem()) return needPremium('Этот поиск только для Premium'); S.cat = c.id; hap(); drawCats(); };
+    el.appendChild(b);
+  });
+}
+$('#sw').onclick = async () => { hap(); S.me.nosym = !S.me.nosym; drawTop(); await api('settings', { nosym: S.me.nosym }); };
+
+function chips(list, cur, key) {
+  return list.map(([v, n]) => '<button class="chip' + (String(cur) === v ? ' on' : '') + '" data-k="' + key + '" data-v="' + v + '">' + n + '</button>').join('');
+}
+function drawOpts() {
+  const o = $('#opts'); o.classList.toggle('locked', !prem());
+  o.innerHTML = '<div class="lbl">Режим <span class="lock">' + (prem() ? '' : '🔒 Premium') + '</span></div><div class="chips">' + chips(MODES, S.me.mode, 'mode') + '</div>' +
+    '<div class="lbl">Минимальный рейтинг</div><div class="chips">' + chips(LVLS, S.me.minlvl, 'minlvl') + '</div>' +
+    '<div class="lbl">Маска (? — буква, # — цифра)</div><input class="inp" id="mask" maxlength="32" placeholder="например ro??a" autocapitalize="off" autocomplete="off">' +
+    '<div class="lbl">Проверить юзернейм</div><div class="row2"><input class="inp" id="chk" maxlength="32" placeholder="username" autocapitalize="off" autocomplete="off" style="margin:0"><button class="btn p" id="chkb">Проверить</button></div>';
+  o.querySelectorAll('.chip').forEach(b => b.onclick = async () => {
+    if (!prem()) return needPremium();
+    const k = b.dataset.k, v = b.dataset.v; hap();
+    S.me[k] = k === 'minlvl' ? +v : v; drawOpts();
+    await api('settings', { [k]: S.me[k] });
+  });
+  o.querySelectorAll('.inp').forEach(i => i.addEventListener('focus', () => { if (!prem()) { i.blur(); needPremium(); } }));
+  $('#chkb').onclick = doCheck;
+}
+function drawExtra() {
+  const el = $('#extra');
+  if (!prem()) { el.innerHTML = ''; return; }
+  const f = S.me.favs || [];
+  el.innerHTML = '<div class="card"><div class="top" style="margin:0 0 10px"><div class="lbl" style="margin:0">⭐ Избранное</div><button class="btn" id="frc" style="padding:8px 12px">Перепроверить</button></div>' +
+    (f.length ? f.map(n => '<div class="fav" data-n="' + n + '"><div>@' + n + '<span class="s" id="fs-' + n + '"></span></div><button class="x" data-d="' + n + '">✕</button></div>').join('') : '<div class="empty" style="padding:12px">Пока пусто</div>') + '</div>';
+  el.querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { await api('fav_del', { name: b.dataset.d }); await loadMe(); });
+  const frc = $('#frc'); if (frc) frc.onclick = async () => {
+    frc.textContent = '...'; const r = await api('fav_recheck');
+    (r.items || []).forEach(i => { const s = $('#fs-' + i.name); if (s) s.textContent = i.text; }); frc.textContent = 'Перепроверить';
+  };
+}
+
+/* ---------- анимация юзернеймов ---------- */
+const stage = () => $('#stage');
+function rnd(n) { const a = 'abcdefghijklmnopqrstuvwxyz'; let s = ''; for (let i = 0; i < n; i++) s += a[Math.floor(Math.random() * 26)]; return s; }
+function fly(name) {
+  const el = document.createElement('div'); el.className = 'fly'; el.textContent = '@' + name;
+  const sx = Math.random() < .5 ? -1 : 1;
+  el.style.setProperty('--dx', (sx * (110 + Math.random() * 90)) + 'px');
+  el.style.setProperty('--dy', (-60 - Math.random() * 70) + 'px');
+  el.style.setProperty('--rot', (sx * (6 + Math.random() * 10)) + 'deg');
+  stage().appendChild(el); el.addEventListener('animationend', () => el.remove());
+}
+function clearStage() { stage().querySelectorAll('.fly,.final,.spark').forEach(e => e.remove()); }
+function reveal(name) {
+  clearStage();
+  const st = stage(), f = document.createElement('div'); f.className = 'final'; f.textContent = '@' + name; st.appendChild(f);
+  for (let i = 0; i < 18; i++) {
+    const s = document.createElement('div'); s.className = 'spark';
+    s.style.setProperty('--a', (i * 20 + Math.random() * 14) + 'deg'); s.style.setProperty('--d', (90 + Math.random() * 70) + 'px');
+    s.style.animationDelay = (Math.random() * .15) + 's'; st.appendChild(s); setTimeout(() => s.remove(), 1300);
+  }
+  hap('medium');
+}
+function setCta(stop) { const b = $('#spin'); b.textContent = stop ? 'Стоп' : 'Крутить'; b.classList.toggle('stop', stop); }
+
+async function spin() {
+  if (S.spinning) { S.stopFlag = true; api('search_stop'); return; }
+  const mask = (($('#mask') || {}).value || '').trim().toLowerCase();
+  if (!mask && !S.cat) return toast('Выберите длину');
+  S.spinning = true; S.stopFlag = false; setCta(true); hap('medium');
+  $('#result').innerHTML = ''; $('#status').textContent = 'Запускаю поиск…'; clearStage(); stage().classList.add('run');
+  let r;
+  try { r = await api('search_start', { cat: S.cat, mask }); } catch (e) { r = { error: 'net' }; }
+  if (r.error) {
+    S.spinning = false; setCta(false); stage().classList.remove('run'); $('#status').textContent = '';
+    const m = { premium: 'Только для Premium', requests: 'Запросы закончились — оформите Premium', busy: 'Поиск уже идёт', mask: 'Неверная маска', cat: 'Категория недоступна', net: 'Нет связи' };
+    toast(m[r.error] || 'Ошибка'); if (r.error === 'premium' || r.error === 'requests') setTimeout(() => go(1), 600); return;
+  }
+  const len = r.length; let since = 0, queue = [], done = null, shown = 0, checked = 0, elapsed = 0;
+  (async () => {
+    while (!done) {
+      try {
+        const p = await api('search_poll', { since });
+        since = p.next || since; queue.push(...(p.names || [])); checked = p.checked || checked; elapsed = p.elapsed || elapsed;
+        if (p.status && p.status !== 'running') done = p;
+      } catch (e) {}
+      if (!done) await sleep(550);
+    }
+  })();
+  while (true) {
+    if (queue.length > 7) queue.splice(0, queue.length - 3);
+    $('#status').textContent = 'Проверено ' + checked + ' · ' + elapsed + ' сек';
+    if (queue.length) { fly(queue.shift()); shown++; await sleep(470); }
+    else if (done) break; else await sleep(120);
+  }
+  if (done.status === 'found') {
+    while (shown < 5) { fly(rnd(len || 5)); shown++; await sleep(470); }   // плавный разгон, если нашлось слишком быстро
+    await sleep(650);
+    reveal(done.result.name); await sleep(700);
+    $('#status').textContent = 'Найден свободный юзернейм';
+    showResult(done.result, null);
+  } else {
+    clearStage(); $('#status').textContent = done.status === 'stopped' ? 'Поиск остановлен' : 'Свободный юзернейм не найден — попробуйте ещё раз';
+  }
+  stage().classList.remove('run'); S.spinning = false; setCta(false);
+  try { await loadMe(); } catch (e) {}
+}
+$('#spin').onclick = spin;
+
+/* ---------- карточка рейтинга ---------- */
+function showResult(r, statusText) {
+  const el = $('#result'), C = 226;
+  const bars = r.parts.map(p => '<div class="bar"><div class="t"><span>' + p.label + '</span><span>' + p.v + '/' + p.max + '</span></div><div class="tr"><div class="fl" data-w="' + Math.round(p.v * 100 / p.max) + '"></div></div></div>').join('');
+  el.innerHTML = '<div class="card res">' + (statusText ? '<div class="rst">' + statusText + '</div>' : '') +
+    '<div class="rhead"><div class="ring"><svg viewBox="0 0 84 84"><circle class="bg" cx="42" cy="42" r="36" fill="none" stroke-width="7"/><circle class="fg" cx="42" cy="42" r="36" fill="none" stroke-width="7"/></svg><b>' + r.total + '</b></div>' +
+    '<div><div class="rname">@' + r.name + '</div><div class="rlvl">' + r.level_name + ' · ' + r.total + '/100</div></div></div>' + bars +
+    '<div class="ver">Проверка: ' + (r.verified ? 'точная (аккаунтом Telegram)' : 'базовая (t.me и Fragment)') + '</div>' +
+    '<div class="row2" style="margin-top:12px"><button class="btn p" id="cp" style="flex:1">Копировать</button>' + (prem() ? '<button class="btn" id="fv">⭐ В избранное</button>' : '') + '</div></div>';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.querySelector('.fg').style.strokeDashoffset = C - C * r.total / 100;
+    el.querySelectorAll('.fl').forEach((f, i) => setTimeout(() => f.style.width = f.dataset.w + '%', 120 + i * 90));
+  }));
+  $('#cp').onclick = async () => { try { await navigator.clipboard.writeText('@' + r.name); } catch (e) { const t = document.createElement('textarea'); t.value = '@' + r.name; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); } toast('Скопировано'); hap(); };
+  const fv = $('#fv'); if (fv) fv.onclick = async () => { const x = await api('fav_add', { name: r.name }); toast(x.error ? 'Избранное заполнено (10)' : 'Добавлено в избранное'); await loadMe(); };
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+async function doCheck() {
+  if (!prem()) return needPremium();
+  const name = ($('#chk').value || '').trim().replace(/^@/, '').toLowerCase();
+  if (!/^[a-z][a-z0-9_]{4,31}$/.test(name)) return toast('Юзернейм: 5–32 символа, a-z, 0-9, _');
+  $('#chkb').textContent = '...'; const r = await api('check', { name }); $('#chkb').textContent = 'Проверить';
+  if (r.error) return toast(r.error === 'premium' ? 'Только для Premium' : 'Неверный юзернейм');
+  showResult(r.rating, r.status_text);
+}
+
+/* ---------- премиум ---------- */
+function drawPremium() {
+  $('#pprice').textContent = S.me.price + ' ⭐';
+  $('#pstate').textContent = S.me.premium ? 'Активен: ' + S.me.until : 'больше возможностей поиска';
+  $('#buy').textContent = S.me.premium ? 'Продлить за ' + S.me.price + ' ⭐' : 'Оформить за ' + S.me.price + ' ⭐';
+  $('#feats').innerHTML = FEATS.map((f, i) => '<div class="feat" style="animation-delay:' + (i * 70) + 'ms"><i>✓</i>' + f + '</div>').join('');
+}
+$('#buy').onclick = async () => {
+  hap('medium'); const r = await api('premium_link');
+  if (!r.link) return toast('Не удалось создать счёт');
+  tg.openInvoice(r.link, async st => {
+    if (st === 'paid') {
+      toast('Оплата прошла!');
+      for (let i = 0; i < 6; i++) { await sleep(1000); await loadMe(); if (S.me.premium) break; }
+      drawPremium(); hap('heavy');
+    }
+  });
+};
+
+/* ---------- поддержка ---------- */
+async function loadSupport() {
+  const r = await api('support_get'), c = $('#chat');
+  c.innerHTML = '';
+  if (!r.msgs.length) c.innerHTML = '<div class="empty">Тикетов нет. Опишите проблему — мы ответим здесь.</div>';
+  r.msgs.forEach(m => { const d = document.createElement('div'); d.className = 'msg ' + (m.s === 'user' ? 'user' : 'admin'); d.textContent = m.t; c.appendChild(d); });
+  c.scrollTop = c.scrollHeight;
+  $('#tstate').textContent = r.ticket ? 'тикет #' + r.ticket : 'напишите нам'; $('#close').style.display = r.ticket ? '' : 'none';
+}
+$('#send').onclick = async () => {
+  const t = $('#sup').value.trim(); if (!t) return; hap();
+  $('#sup').value = ''; await api('support_send', { text: t }); loadSupport();
+};
+$('#close').onclick = async () => { await api('support_close'); loadSupport(); toast('Тикет закрыт'); };
+setInterval(() => { if (S.tab === 2) loadSupport(); }, 8000);
+
+/* ---------- старт ---------- */
+(async () => {
+  const t0 = Date.now();
+  if (!tg || !tg.initData) { await sleep(2200); $('#splash').classList.add('hide'); $('#err').style.display = 'flex'; return; }
+  try { await loadMe(); } catch (e) { $('#err').textContent = e.message === 'banned' ? 'Доступ ограничен' : 'Ошибка авторизации'; $('#err').style.display = 'flex'; }
+  await sleep(Math.max(0, 2700 - (Date.now() - t0)));
+  $('#splash').classList.add('hide'); $('#app').classList.add('show');
+})();
+</script>
+</body>
+</html>
